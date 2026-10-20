@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 from datetime import datetime
+import google.generativeai as genai
 
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION
@@ -64,16 +65,19 @@ def fetch_weather_data():
 data = fetch_weather_data()
 
 # -----------------------------------------------------------------------------
-# CUSTOM CLAUDE-STYLE STYLING
+# CUSTOM CLAUDE-STYLE STYLING (MERRIWEATHER & MONTSERRAT)
 # -----------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-    /* Global Reset & Claude Warm Beige Tone */
+    /* Google Fonts Import */
+    @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&family=Montserrat:wght@300;400;500;600;700&display=swap');
+
+    /* Global Reset & Claude Warm Beige Tone with Montserrat */
     [data-testid="stAppViewContainer"] {
         background-color: #FAF7F2;
         color: #22201D;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+        font-family: 'Montserrat', sans-serif;
     }
     
     header[data-testid="stHeader"] {
@@ -106,18 +110,20 @@ st.markdown(
         gap: 16px;
     }
 
+    /* Merriweather Font for Brand Title */
     .brand-title {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", serif;
+        font-family: 'Merriweather', serif;
         font-size: 26px;
         font-weight: 700;
-        letter-spacing: 0.14em;
+        letter-spacing: 0.12em;
         color: #1A1918;
         margin: 0;
     }
 
     .location-tag {
+        font-family: 'Montserrat', sans-serif;
         font-size: 13px;
-        font-weight: 500;
+        font-weight: 600;
         letter-spacing: 0.04em;
         color: #79746D;
         text-transform: uppercase;
@@ -141,7 +147,9 @@ st.markdown(
         flex-direction: column;
     }
 
+    /* Merriweather Font for Main Temperature */
     .hero-temp {
+        font-family: 'Merriweather', serif;
         font-size: 72px;
         font-weight: 300;
         line-height: 1;
@@ -150,13 +158,15 @@ st.markdown(
     }
 
     .hero-desc {
+        font-family: 'Montserrat', sans-serif;
         font-size: 19px;
-        font-weight: 400;
+        font-weight: 500;
         color: #55524E;
         margin-top: 10px;
     }
 
     .hero-meta {
+        font-family: 'Montserrat', sans-serif;
         font-size: 14px;
         color: #8C867E;
         margin-top: 4px;
@@ -184,6 +194,7 @@ st.markdown(
     }
 
     .metric-label {
+        font-family: 'Montserrat', sans-serif;
         font-size: 12px;
         font-weight: 600;
         text-transform: uppercase;
@@ -192,14 +203,17 @@ st.markdown(
         margin-bottom: 8px;
     }
 
+    /* Merriweather Font for Metric Values */
     .metric-value {
+        font-family: 'Merriweather', serif;
         font-size: 26px;
-        font-weight: 600;
+        font-weight: 700;
         color: #1F1E1D;
         letter-spacing: -0.02em;
     }
 
     .metric-sub {
+        font-family: 'Montserrat', sans-serif;
         font-size: 13px;
         color: #8C867E;
         margin-top: 4px;
@@ -207,6 +221,7 @@ st.markdown(
 
     /* Section Subhead */
     .section-label {
+        font-family: 'Montserrat', sans-serif;
         font-size: 13px;
         font-weight: 600;
         letter-spacing: 0.08em;
@@ -237,6 +252,7 @@ st.markdown(
     }
 
     .pill-time {
+        font-family: 'Montserrat', sans-serif;
         font-size: 13px;
         font-weight: 500;
         color: #79746D;
@@ -249,12 +265,14 @@ st.markdown(
     }
 
     .pill-temp {
+        font-family: 'Merriweather', serif;
         font-size: 18px;
-        font-weight: 600;
+        font-weight: 700;
         color: #1E1D1C;
     }
 
     .pill-rain {
+        font-family: 'Montserrat', sans-serif;
         font-size: 12px;
         font-weight: 500;
         color: #64748B;
@@ -290,15 +308,12 @@ SKETCH_LOGO_SVG = """
   <path d="M 12 62 Q 36 60, 60 62" stroke="#1E1D1A" stroke-width="1.6" stroke-linecap="round" />
 
   <!-- Small Minimal Trees -->
-  <!-- Tree 1 -->
   <line x1="22" y1="56" x2="22" y2="61" stroke="#1E1D1A" stroke-width="1.6" stroke-linecap="round" />
   <path d="M 22 49 L 17 56 L 27 56 Z" stroke="#1E1D1A" stroke-width="1.5" stroke-linejoin="round" fill="none" />
 
-  <!-- Tree 2 (Smaller) -->
   <line x1="34" y1="57" x2="34" y2="61" stroke="#1E1D1A" stroke-width="1.4" stroke-linecap="round" />
   <path d="M 34 52 L 30 57 L 38 57 Z" stroke="#1E1D1A" stroke-width="1.4" stroke-linejoin="round" fill="none" />
 
-  <!-- Tree 3 -->
   <line x1="48" y1="55" x2="48" y2="61" stroke="#1E1D1A" stroke-width="1.6" stroke-linecap="round" />
   <path d="M 48 48 L 43 55 L 53 55 Z" stroke="#1E1D1A" stroke-width="1.5" stroke-linejoin="round" fill="none" />
 </svg>
@@ -381,7 +396,7 @@ else:
         </div>
         <div class="metric-card">
             <div class="metric-label">Wind Speed</div>
-            <div class="metric-value">{wind_speed} <span style="font-size: 16px; font-weight: 400; color: #6F6A63;">km/h</span></div>
+            <div class="metric-value">{wind_speed} <span style="font-size: 16px; font-weight: 400; color: #6F6A63; font-family: 'Montserrat';">km/h</span></div>
             <div class="metric-sub">Surface level (10m)</div>
         </div>
         <div class="metric-card">
@@ -397,27 +412,6 @@ else:
     st.markdown('<div class="section-label">Hourly Timeline</div>', unsafe_allow_html=True)
 
     forecast_pills_html = '<div class="forecast-container">'
-    # Show the next 8 available hourly forecast slots
     end_idx = min(start_idx + 8, len(hourly_times))
 
-    for i in range(start_idx, end_idx):
-        raw_time = hourly_times[i]
-        t_parsed = datetime.strptime(raw_time, "%Y-%m-%dT%H:%M")
-        time_label = t_parsed.strftime("%-I %p") if hasattr(t_parsed, "strftime") else t_parsed.strftime("%I %p")
-        
-        step_temp = round(hourly_temps[i]) if i < len(hourly_temps) else temp
-        step_precip = hourly_precip[i] if i < len(hourly_precip) else 0
-        step_code = hourly_codes[i] if i < len(hourly_codes) else 0
-        _, step_icon = WMO_CODE_MAP.get(step_code, ("Clear", "☀️"))
-
-        forecast_pills_html += f"""
-        <div class="forecast-pill">
-            <div class="pill-time">{time_label}</div>
-            <div class="pill-icon">{step_icon}</div>
-            <div class="pill-temp">{step_temp}°</div>
-            <div class="pill-rain">{step_precip}%</div>
-        </div>
-        """
-
-    forecast_pills_html += "</div>"
-    st.markdown(forecast_pills_html, unsafe_allow_html=True)
+    for i in range(
