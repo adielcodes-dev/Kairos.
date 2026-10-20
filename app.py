@@ -1,4 +1,4 @@
-import streamlit as st
+import os
 import requests
 from datetime import datetime
 import google.generativeai as genai
@@ -278,6 +278,18 @@ st.markdown(
         color: #64748B;
         margin-top: 4px;
     }
+
+    /* Merriweather Font for Chatbot Message Text */
+    [data-testid="stChatMessage"] {
+        font-family: 'Merriweather', serif !important;
+        font-size: 15px;
+        line-height: 1.6;
+        color: #2C2A29;
+    }
+
+    [data-testid="stChatMessage"] p {
+        font-family: 'Merriweather', serif !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -414,4 +426,75 @@ else:
     forecast_pills_html = '<div class="forecast-container">'
     end_idx = min(start_idx + 8, len(hourly_times))
 
-    for i in range(
+    for i in range(start_idx, end_idx):
+        raw_time = hourly_times[i]
+        t_parsed = datetime.strptime(raw_time, "%Y-%m-%dT%H:%M")
+        time_label = t_parsed.strftime("%I %p").lstrip("0")
+        
+        step_temp = round(hourly_temps[i]) if i < len(hourly_temps) else temp
+        step_precip = hourly_precip[i] if i < len(hourly_precip) else 0
+        step_code = hourly_codes[i] if i < len(hourly_codes) else 0
+        _, step_icon = WMO_CODE_MAP.get(step_code, ("Clear", "☀️"))
+
+        forecast_pills_html += f"""
+        <div class="forecast-pill">
+            <div class="pill-time">{time_label}</div>
+            <div class="pill-icon">{step_icon}</div>
+            <div class="pill-temp">{step_temp}°</div>
+            <div class="pill-rain">{step_precip}%</div>
+        </div>
+        """
+
+    forecast_pills_html += "</div>"
+    st.markdown(forecast_pills_html, unsafe_allow_html=True)
+
+    # -----------------------------------------------------------------------------
+    # AI CHATBOT (GEMINI API INTEGRATION)
+    # -----------------------------------------------------------------------------
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Ask Kairos</div>', unsafe_allow_html=True)
+
+    # Checks Render environment variable first, then falls back to Streamlit Secrets
+    api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
+
+    if api_key:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+
+        # Initialize Chat History
+        if "messages" not in st.session_state:
+            st.session_state.messages = [
+                {"role": "assistant", "content": f"Hi! I'm Kairos. Ask me anything about today's weather in {LOCATION_NAME}!"}
+            ]
+
+        # Display Prior Chat Messages
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+
+        # Chat Input
+        if prompt := st.chat_input("Ask a question (e.g., 'Should I train outside today?')..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.write(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Analyzing weather..."):
+                    system_context = (
+                        f"You are Kairos, a thoughtful, minimalist weather companion for {LOCATION_NAME}. "
+                        f"Current weather: {temp}°C (feels like {apparent_temp}°C), {weather_desc}, "
+                        f"Humidity: {humidity}%, Wind: {wind_speed} km/h, Rain chance: {rain_chance}%. "
+                        f"Keep responses concise, direct, warm, and helpful (1-3 sentences)."
+                    )
+                    full_prompt = f"{system_context}\n\nUser Question: {prompt}"
+                    
+                    try:
+                        response = model.generate_content(full_prompt)
+                        reply = response.text
+                    except Exception as e:
+                        reply = "I couldn't process that request right now. Please check your API configuration."
+
+                    st.write(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+    else:
+        st.info("💡 To enable the AI Chat feature, set GEMINI_API_KEY in your Environment Variables or Secrets.")
